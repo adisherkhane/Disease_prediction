@@ -10,16 +10,16 @@ app = Flask(__name__)
 
 
 # load databasedataset===================================
-sym_des = pd.read_csv("datasets/symtoms_df.csv")
-precautions = pd.read_csv("datasets/precautions_df.csv")
-workout = pd.read_csv("datasets/workout_df.csv")
-description = pd.read_csv("datasets/description.csv")
-medications = pd.read_csv('datasets/medications.csv')
-diets = pd.read_csv("datasets/diets.csv")
+sym_des = pd.read_csv("symtoms_df.csv")
+precautions = pd.read_csv("precautions_df.csv")
+workout = pd.read_csv("workout_df.csv")
+description = pd.read_csv("description.csv")
+medications = pd.read_csv('medications.csv')
+diets = pd.read_csv("diets.csv")
 
 
 # load model===========================================
-svc = pickle.load(open('models/svc.pkl','rb'))
+svc = pickle.load(open('svc.pkl','rb'))
 
 
 #============================================================
@@ -47,11 +47,20 @@ symptoms_dict = {'itching': 0, 'skin_rash': 1, 'nodal_skin_eruptions': 2, 'conti
 diseases_list = {15: 'Fungal infection', 4: 'Allergy', 16: 'GERD', 9: 'Chronic cholestasis', 14: 'Drug Reaction', 33: 'Peptic ulcer diseae', 1: 'AIDS', 12: 'Diabetes ', 17: 'Gastroenteritis', 6: 'Bronchial Asthma', 23: 'Hypertension ', 30: 'Migraine', 7: 'Cervical spondylosis', 32: 'Paralysis (brain hemorrhage)', 28: 'Jaundice', 29: 'Malaria', 8: 'Chicken pox', 11: 'Dengue', 37: 'Typhoid', 40: 'hepatitis A', 19: 'Hepatitis B', 20: 'Hepatitis C', 21: 'Hepatitis D', 22: 'Hepatitis E', 3: 'Alcoholic hepatitis', 36: 'Tuberculosis', 10: 'Common Cold', 34: 'Pneumonia', 13: 'Dimorphic hemmorhoids(piles)', 18: 'Heart attack', 39: 'Varicose veins', 26: 'Hypothyroidism', 24: 'Hyperthyroidism', 25: 'Hypoglycemia', 31: 'Osteoarthristis', 5: 'Arthritis', 0: '(vertigo) Paroymsal  Positional Vertigo', 2: 'Acne', 38: 'Urinary tract infection', 35: 'Psoriasis', 27: 'Impetigo'}
 
 # Model Prediction function
+# def get_predicted_value(patient_symptoms):
+#     input_vector = np.zeros(len(symptoms_dict))
+#     for item in patient_symptoms:
+#         input_vector[symptoms_dict[item]] = 1
+#     return diseases_list[svc.predict([input_vector])[0]]
 def get_predicted_value(patient_symptoms):
+    unknown_symptoms = [sym for sym in patient_symptoms if sym not in symptoms_dict]
+    if unknown_symptoms:
+        return None, unknown_symptoms  # Return None and list of unknown symptoms
+
     input_vector = np.zeros(len(symptoms_dict))
     for item in patient_symptoms:
         input_vector[symptoms_dict[item]] = 1
-    return diseases_list[svc.predict([input_vector])[0]]
+    return diseases_list[svc.predict([input_vector])[0]], None
 
 
 
@@ -64,32 +73,61 @@ def index():
     return render_template("index.html")
 
 # Define a route for the home page
+# @app.route('/predict', methods=['GET', 'POST'])
+# def home():
+#     if request.method == 'POST':
+#         symptoms = request.form.get('symptoms')
+#         # mysysms = request.form.get('mysysms')
+#         # print(mysysms)
+#         print(symptoms)
+#         if symptoms =="Symptoms":
+#             message = "Please either write symptoms or you have written misspelled symptoms"
+#             return render_template('index.html', message=message)
+#         else:
+
+#             # Split the user's input into a list of symptoms (assuming they are comma-separated)
+#             user_symptoms = [s.strip() for s in symptoms.split(',')]
+#             # Remove any extra characters, if any
+#             user_symptoms = [symptom.strip("[]' ") for symptom in user_symptoms]
+#             predicted_disease = get_predicted_value(user_symptoms)
+#             dis_des, precautions, medications, rec_diet, workout = helper(predicted_disease)
+
+#             my_precautions = []
+#             for i in precautions[0]:
+#                 my_precautions.append(i)
+
+#             return render_template('index.html', predicted_disease=predicted_disease, dis_des=dis_des,
+#                                    my_precautions=my_precautions, medications=medications, my_diet=rec_diet,
+#                                    workout=workout)
+
+#     return render_template('index.html')
 @app.route('/predict', methods=['GET', 'POST'])
 def home():
     if request.method == 'POST':
         symptoms = request.form.get('symptoms')
-        # mysysms = request.form.get('mysysms')
-        # print(mysysms)
-        print(symptoms)
-        if symptoms =="Symptoms":
+
+        if symptoms == "Symptoms":
             message = "Please either write symptoms or you have written misspelled symptoms"
             return render_template('index.html', message=message)
-        else:
 
-            # Split the user's input into a list of symptoms (assuming they are comma-separated)
-            user_symptoms = [s.strip() for s in symptoms.split(',')]
-            # Remove any extra characters, if any
-            user_symptoms = [symptom.strip("[]' ") for symptom in user_symptoms]
-            predicted_disease = get_predicted_value(user_symptoms)
-            dis_des, precautions, medications, rec_diet, workout = helper(predicted_disease)
+        user_symptoms = [s.strip() for s in symptoms.split(',')]
+        user_symptoms = [symptom.strip("[]' ") for symptom in user_symptoms]
 
-            my_precautions = []
-            for i in precautions[0]:
-                my_precautions.append(i)
+        predicted_disease, unknown_symptoms = get_predicted_value(user_symptoms)
 
-            return render_template('index.html', predicted_disease=predicted_disease, dis_des=dis_des,
-                                   my_precautions=my_precautions, medications=medications, my_diet=rec_diet,
-                                   workout=workout)
+        if unknown_symptoms:
+            message = f"These symptoms are not recognized: {', '.join(unknown_symptoms)}. Please check spelling or use known symptoms."
+            return render_template('index.html', message=message)
+
+        dis_des, precautions, medications, rec_diet, workout = helper(predicted_disease)
+
+        my_precautions = []
+        for i in precautions[0]:
+            my_precautions.append(i)
+
+        return render_template('index.html', predicted_disease=predicted_disease, dis_des=dis_des,
+                               my_precautions=my_precautions, medications=medications, my_diet=rec_diet,
+                               workout=workout)
 
     return render_template('index.html')
 
